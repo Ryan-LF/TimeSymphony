@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="PLUIMczYwnx5NKSKv5DFrm">
+<head data-page-node-id="Mg48Q9DGlyXGPTBGQBI1nx">
+<meta charset="UTF-8" data-page-node-id="uxFTzAO7ETpLnFNVSdckU7" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="zHusdoKvzbAWFHlnekXmAA" />
+<title>时之交响 TimeSymphony - Icon Animation</title>
+<style>
+  :root {
+    --bg-0: #05070f;
+    --bg-1: #0b1028;
+    --bg-2: #141a44;
+    --glow-cyan: #7ef9ff;
+    --glow-purple: #b57bff;
+    --glow-gold: #ffd36e;
+    --text: rgba(255, 255, 255, 0.82);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 24px;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(181, 123, 255, 0.18), transparent 45%),
+      radial-gradient(circle at 70% 80%, rgba(126, 249, 255, 0.15), transparent 50%),
+      linear-gradient(180deg, #05070f 0%, #0b1028 45%, #080a1a 100%);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    border-radius: 44px;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(20, 26, 68, 0.9), rgba(5, 7, 15, 0.95) 70%);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 30px 80px rgba(0, 0, 0, 0.55),
+      0 0 120px rgba(126, 249, 255, 0.08),
+      0 0 220px rgba(181, 123, 255, 0.08);
+    overflow: hidden;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .title {
+    text-align: center;
+    letter-spacing: 4px;
+  }
+
+  .title .cn {
+    font-size: 20px;
+    font-weight: 600;
+    background: linear-gradient(90deg, #7ef9ff, #b57bff 50%, #ffd36e);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .title .en {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 6px;
+  }
+
+  .hint {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 2px;
+  }
+
+  @media (max-width: 480px) {
+    .stage { width: 220px; height: 220px; }
+    .title .cn { font-size: 18px; }
+  }
+</style>
+</head>
+<body data-page-node-id="Gr1jstZEJ78ACt9SknPQrW">
+
+<div class="stage" id="stage" data-page-node-id="zjccOWMhuDWLAgCbRKEjj7">
+  <canvas id="iconCanvas" data-page-node-id="PfCGW5mEaBLG2JCP9inwEi"></canvas>
+</div>
+
+<div class="title" data-page-node-id="503o1pNDWk0PsmBfrDDWpg">
+  <span class="cn" data-page-node-id="CFIOt89BCgWAfplUJqsWrU">时之交响</span>
+  <span class="en" data-page-node-id="gVlq1bnXmw9WW9uA65h6Rm">TimeSymphony</span>
+</div>
+
+<div class="hint" data-page-node-id="zLOgaUjIInsVtVipBjmXsV">光晕圆弧 · 游走粒子吸附 · 声波粒子带</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('iconCanvas');
+  const ctx = canvas.getContext('2d');
+  const stage = document.getElementById('stage');
+
+  let DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let size = 260;
+
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    size = Math.floor(rect.width);
+    canvas.width = size * DPR;
+    canvas.height = size * DPR;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    rebuildScaleDependent();
+  }
+
+  const cx = () => size / 2;
+  const cy = () => size / 2;
+  const R = () => size * 0.42;
+
+  // ---------- 保留：时间指针 ----------
+  const hands = [
+    { ratio: 0.50, speed: 1 / 4500, phase: 0, color: '#7ef9ff', width: 1.6 }, // 时针
+    { ratio: 0.72, speed: 1 / 1800, phase: 2.1, color: '#b57bff', width: 1.3 }, // 分针
+    { ratio: 0.88, speed: 1 / 600,  phase: 4.2, color: '#ffd36e', width: 1.0 },  // 秒针
+  ];
+
+  // ---------- 保留：中心光点 ----------
+  // （绘制逻辑在 draw() 末尾，未改动）
+
+  // =========================================================
+  // 粒子系统重构 —— 对照参考图的三种效果
+  //   1) 内轨闪尘：贴着刻度内圈公转的细碎尘埃
+  //   2) 声波粒子带：水平左右延展、条柱高低起伏的频谱尘埃
+  //   3) 弧缘爆发：光弧端点附近的溅射闪尘（点/锥形/细丝）
+  // =========================================================
+
+  // 1) 内轨闪尘
+  const dust = [];
+  const DUST_COUNT = 150;
+  for (let i = 0; i < DUST_COUNT; i++) {
+    dust.push({
+      angle: Math.random() * Math.PI * 2,
+      radius: R() * (0.52 + Math.random() * 0.22),
+      size: 0.4 + Math.random() * 1.1,
+      speed: (Math.random() < 0.5 ? -1 : 1) * (0.0002 + Math.random() * 0.0004),
+      alpha: 0.15 + Math.random() * 0.45,
+      tw: Math.random() * Math.PI * 2,        // 闪烁相位
+      twSpeed: 0.002 + Math.random() * 0.004,
+      tone: Math.random(),
+    });
+  }
+
+  // 2) 环绕游走粒子（外圈，指针靠近时被吸附）
+  const orbiters = [];
+  const ORBITER_COUNT = 950;
+  for (let i = 0; i < ORBITER_COUNT; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radial = R() * (0.72 + Math.random() * 0.34);
+    orbiters.push({
+      angle,
+      radial,
+      x: cx() + Math.cos(angle) * radial,
+      y: cy() + Math.sin(angle) * radial,
+      vx: 0,
+      vy: 0,
+      drift: (Math.random() < 0.5 ? -1 : 1) * (0.0008 + Math.random() * 0.0018),
+      wob: Math.random() * Math.PI * 2,
+      size: 0.3 + Math.random() * 0.55,
+      alpha: 0.22 + Math.random() * 0.38,
+      tone: Math.random(),
+      tw: Math.random() * Math.PI * 2,
+      grabbed: 0,
+    });
+  }
+
+  // 2) 声波粒子带（左右两条）
+  const eqBars = [];
+  const EQ_BARS = 26;
+  const eqPhase = [];
+  for (let s = 0; s < 2; s++) {
+    for (let i = 0; i < EQ_BARS; i++) {
+      eqBars.push({
+        side: s,                                   // 0=左 1=右
+        idx: i,
+        base: 0.25 + Math.random() * 0.4,          // 基础高度
+        speed: 0.003 + Math.random() * 0.005,
+        phase: Math.random() * Math.PI * 2,
+        particles: [],
+      });
+    }
+    eqPhase.push(Math.random() * Math.PI * 2);
+  }
+
+  // 每根条柱挂 5~8 颗尘埃
+  eqBars.forEach((bar) => {
+    const n = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      bar.particles.push({
+        off: Math.random() * Math.PI * 2,          // 条柱内纵向偏移相位
+        offSpeed: 0.004 + Math.random() * 0.006,
+        size: 0.5 + Math.random() * 1.0,
+        alpha: 0.3 + Math.random() * 0.6,
+        jitter: Math.random() * Math.PI * 2,
+      });
+    }
+  });
+
+  // 3) 弧缘爆发（光弧端点溅射）
+  const sparkBursts = [];   // 单颗溅射尘
+  const streaks = [];       // 细丝/拖尾
+  const SPARK_COUNT = 70;
+  const STREAK_COUNT = 26;
+
+  function resetSpark(p, atEdge) {
+    const arc = Math.random() < 0.5 ? 0 : 1;
+    const baseA = (arc === 0 ? 0.35 : 3.5) + (Math.random() - 0.5) * 1.6; // 弧端附近角度
+    p.arc = arc;
+    p.angle = baseA;
+    p.radius = R() * (0.92 + Math.random() * 0.30);
+    p.x = cx() + Math.cos(p.angle) * p.radius;
+    p.y = cy() + Math.sin(p.angle) * p.radius;
+    const spread = 0.25 + Math.random() * 0.9;
+    p.vx = Math.cos(p.angle + (Math.random() - 0.5) * 2.4) * spread;
+    p.vy = Math.sin(p.angle + (Math.random() - 0.5) * 2.4) * spread * 0.7;
+    p.life = 0;
+    p.maxLife = 40 + Math.random() * 90;
+    p.size = 0.5 + Math.random() * 1.6;
+    p.tone = Math.random();
+    if (atEdge) { p.life = Math.random() * p.maxLife * 0.5; }
+  }
+
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const p = {};
+    resetSpark(p, true);
+    sparkBursts.push(p);
+  }
+
+  function resetStreak(s, atEdge) {
+    const arc = Math.random() < 0.5 ? 0 : 1;
+    const baseA = (arc === 0 ? 0.35 : 3.5) + (Math.random() - 0.5) * 1.4;
+    s.arc = arc;
+    s.angle = baseA;
+    s.radius = R() * (0.96 + Math.random() * 0.22);
+    s.x = cx() + Math.cos(s.angle) * s.radius;
+    s.y = cy() + Math.sin(s.angle) * s.radius;
+    const spread = 0.5 + Math.random() * 1.4;
+    const dir = s.angle + (Math.random() - 0.5) * 1.8;
+    s.vx = Math.cos(dir) * spread;
+    s.vy = Math.sin(dir) * spread * 0.55;
+    s.len = 4 + Math.random() * 18;
+    s.life = 0;
+    s.maxLife = 30 + Math.random() * 70;
+    s.tone = Math.random();
+    s.width = 0.4 + Math.random() * 0.8;
+    if (atEdge) { s.life = Math.random() * s.maxLife * 0.5; }
+  }
+
+  for (let i = 0; i < STREAK_COUNT; i++) {
+    const s = {};
+    resetStreak(s, true);
+    streaks.push(s);
+  }
+
+  // 光弧（参考图的多层旋转圆弧，替代旧的整圆光圈）
+  const arcs = [
+    { r: 0.70, color: 'rgba(126,249,255,0.75)',  width: 1.4, speed: 0.00010, phase: 0,   span: 1.15, glow: 22 },
+    { r: 0.82, color: 'rgba(181,123,255,0.65)',  width: 1.2, speed: -0.00016, phase: 2.1, span: 1.55, glow: 20 },
+    { r: 0.94, color: 'rgba(255,211,110,0.55)',  width: 1.0, speed: 0.00008, phase: 4.0, span: 0.95, glow: 18 },
+    { r: 0.88, color: 'rgba(126,249,255,0.45)',  width: 0.8, speed: -0.00006, phase: 1.0, span: 2.2,  glow: 14 },
+    { r: 0.76, color: 'rgba(181,123,255,0.40)',  width: 0.7, speed: 0.00013,  phase: 5.2, span: 1.7,  glow: 14 },
+    { r: 1.02, color: 'rgba(126,249,255,0.28)',  width: 0.6, speed: -0.00005, phase: 3.0, span: 2.6,  glow: 12 },
+    { r: 0.98, color: 'rgba(255,211,110,0.22)',  width: 0.5, speed: 0.00007,  phase: 0.6, span: 2.0,  glow: 10 },
+    { r: 0.66, color: 'rgba(126,249,255,0.30)',  width: 0.6, speed: -0.00009, phase: 4.6, span: 1.3,  glow: 12 },
+    { r: 1.06, color: 'rgba(181,123,255,0.18)',  width: 0.5, speed: 0.00004,  phase: 2.6, span: 2.9,  glow: 8 },
+  ];
+
+  // 刻度（略调：对比度提高，长刻度更亮）
+  const ticks = [];
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2;
+    ticks.push({
+      angle: a,
+      inner: R() * 0.64,
+      outer: R() * (i % 5 === 0 ? 0.78 : 0.73),
+      alpha: i % 5 === 0 ? 0.62 : 0.30,
+    });
+  }
+
+  // 内轨细网格（参考图刻度内侧的细环线）
+  const innerGrid = [0.52, 0.58, 0.64];
+
+  // 音色：尘埃颜色（青 / 紫 / 金 白）
+  function dustColor(tone, alpha) {
+    if (tone < 0.45) return `rgba(126,249,255,${alpha})`;
+    if (tone < 0.80) return `rgba(181,123,255,${alpha})`;
+    if (tone < 0.93) return `rgba(255,211,110,${alpha})`;
+    return `rgba(255,255,255,${alpha})`;
+  }
+
+  // 性能：预先渲染的发光点位图（替代每颗粒子的 shadowBlur）
+  // shadowBlur 是逐粒子高斯模糊，1314 颗直接把帧率打穿；改成画位图后成本降到 fillImage 级别。
+  function makeGlowSprite(r, g, b) {
+    const S = 64;
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const g2 = c.getContext('2d');
+    const half = S / 2;
+    const grad = g2.createRadialGradient(half, half, 0, half, half, half);
+    grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+    grad.addColorStop(0.25, `rgba(${r},${g},${b},0.45)`);
+    grad.addColorStop(0.55, `rgba(${r},${g},${b},0.12)`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    g2.fillStyle = grad;
+    g2.fillRect(0, 0, S, S);
+    return c;
+  }
+  const SPRITES = {
+    cyan:   makeGlowSprite(126, 249, 255),
+    purple: makeGlowSprite(181, 123, 255),
+    gold:   makeGlowSprite(255, 211, 110),
+    white:  makeGlowSprite(255, 255, 255),
+  };
+  function spriteFor(tone) {
+    if (tone < 0.45) return SPRITES.cyan;
+    if (tone < 0.80) return SPRITES.purple;
+    if (tone < 0.93) return SPRITES.gold;
+    return SPRITES.white;
+  }
+  function drawGlow(x, y, radius, sprite, alpha) {
+    if (radius <= 0) return;
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(sprite, x - radius, y - radius, radius * 2, radius * 2);
+    ctx.globalAlpha = 1;
+  }
+
+  let startTime = performance.now();
+
+  function rebuildScaleDependent() {
+    // 尺寸变化时重建位置基准（粒子本身用相对 R 的值，这里仅刷新静态半径）
+    dust.forEach((p) => { p.radius = R() * (p.radius / (R() || 1)); });
+  }
+
+  function draw(now) {
+    const t = now - startTime;
+
+    ctx.clearRect(0, 0, size, size);
+
+    // 背景中心暗晕
+    const bg = ctx.createRadialGradient(cx(), cy(), size * 0.1, cx(), cy(), size * 0.45);
+    bg.addColorStop(0, 'rgba(20, 26, 68, 0.45)');
+    bg.addColorStop(1, 'rgba(5, 7, 15, 0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, size, size);
+
+    // ---------- 光弧（旋转圆弧，替代整圆） ----------
+    arcs.forEach((arc) => {
+      const radius = R() * arc.r;
+      const rot = t * arc.speed + arc.phase;
+      const half = arc.span / 2;
+      ctx.save();
+      ctx.translate(cx(), cy());
+      ctx.rotate(rot);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, -half, half);
+      ctx.strokeStyle = arc.color;
+      ctx.lineWidth = arc.width;
+      ctx.shadowBlur = arc.glow;
+      ctx.shadowColor = arc.color;
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // ---------- 内轨细网格 ----------
+    ctx.save();
+    ctx.translate(cx(), cy());
+    innerGrid.forEach((r, idx) => {
+      ctx.beginPath();
+      ctx.arc(0, 0, R() * r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(126,249,255,${0.08 + idx * 0.03})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    // ---------- 时间刻度 ----------
+    ctx.save();
+    ctx.translate(cx(), cy());
+    ticks.forEach((tick) => {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(tick.angle) * tick.inner, Math.sin(tick.angle) * tick.inner);
+      ctx.lineTo(Math.cos(tick.angle) * tick.outer, Math.sin(tick.angle) * tick.outer);
+      ctx.strokeStyle = `rgba(255,255,255,${tick.alpha})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    // ---------- 指针端点 ----------
+    const ends = hands.map((hand) => {
+      const angle = t * hand.speed + hand.phase;
+      const len = R() * hand.ratio;
+      return {
+        angle,
+        x: cx() + Math.cos(angle) * len,
+        y: cy() + Math.sin(angle) * len,
+        color: hand.color,
+        width: hand.width,
+      };
+    });
+
+    // 绘制指针（保留）
+    ends.forEach((end) => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx(), cy());
+      ctx.lineTo(end.x, end.y);
+      ctx.strokeStyle = end.color;
+      ctx.lineWidth = end.width;
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = end.color;
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // ---------- 1) 内轨闪尘 ----------
+    dust.forEach((p) => {
+      p.angle += p.speed;
+      p.tw += p.twSpeed;
+      const r = p.radius;
+      const x = cx() + Math.cos(p.angle) * r;
+      const y = cy() + Math.sin(p.angle) * r;
+      const a = p.alpha * (0.55 + 0.45 * Math.sin(p.tw));
+      drawGlow(x, y, p.size * 2.6, spriteFor(p.tone), a * 0.85);
+    });
+
+    // ---------- 2) 环绕游走粒子：指针靠近时被吸附 ----------
+    // 吸附力三针一致，只随距离衰减 —— 之前按时针长度缩放是错的：
+    // 时针短力大半径大 → 粘死；秒针长力小半径小 → 碰不到。
+    // 正确逻辑：三针作用半径相同，谁离得近谁吸，"碰撞即被捕获"。
+    const attractors = hands.map((hand) => {
+      const angle = t * hand.speed + hand.phase;
+      const len = R() * hand.ratio;
+      return {
+        angle,
+        len,
+        x: cx() + Math.cos(angle) * len,
+        y: cy() + Math.sin(angle) * len,
+        color: hand.color,
+      };
+    });
+    const ATTRACT_RANGE = R() * 0.40; // 三针统一
+    const ATTRACT_FORCE = 0.25;      // 温和，不粘死
+
+    orbiters.forEach((p) => {
+      // 自主游走：沿切向缓慢漂移
+      p.angle += p.drift;
+      p.radial += Math.sin(t * 0.0006 + p.wob) * 0.15;
+
+      // 基准位置（环上）
+      const bx = cx() + Math.cos(p.angle) * p.radial;
+      const by = cy() + Math.sin(p.angle) * p.radial;
+
+      // 找最近的指针端点，施加吸附
+      let best = null, bestD = Infinity;
+      for (const a of attractors) {
+        const dx = a.x - p.x, dy = a.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < bestD) { bestD = d; best = a; }
+      }
+
+      if (best && bestD < ATTRACT_RANGE) {
+        const k = 1 - bestD / ATTRACT_RANGE;        // 0..1，越近越强
+        const pull = ATTRACT_FORCE * k * k;          // 平方衰减
+        const dx = best.x - p.x, dy = best.y - p.y;
+        p.vx += (dx / (bestD + 1)) * pull;
+        p.vy += (dy / (bestD + 1)) * pull;
+        p.grabbed = Math.min(1, p.grabbed + 0.10);
+      } else {
+        p.grabbed *= 0.90;
+      }
+
+      // 回正力：把粒子往环上基准位拉，防止粘在指针上不走
+      p.vx += (bx - p.x) * 0.012;
+      p.vy += (by - p.y) * 0.012;
+
+      // 阻尼
+      p.vx *= 0.88;
+      p.vy *= 0.88;
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      const g = p.grabbed;
+      const size = p.size * (1 + g * 0.8);
+      const a = p.alpha * (0.55 + 0.45 * Math.sin(p.tw + t * 0.003)) * (1 + g * 1.1);
+      p.tw += 0.01;
+
+      // 发光点：位图精灵替代 shadowBlur
+      const grabbed = g > 0.4;
+      drawGlow(p.x, p.y, size * (2.4 + g * 1.6), grabbed ? SPRITES.cyan : spriteFor(p.tone), Math.min(0.9, a) * 0.9);
+
+      // 被吸附时拖一小段尾巴
+      if (g > 0.3) {
+        ctx.beginPath();
+        ctx.moveTo(p.x - p.vx * 1.8, p.y - p.vy * 1.8);
+        ctx.lineTo(p.x, p.y);
+        ctx.strokeStyle = `rgba(126,249,255,${g * 0.35})`;
+        ctx.lineWidth = size * 0.6;
+        ctx.stroke();
+      }
+    });
+
+    // ---------- 2) 声波粒子带 ----------
+    // 左右水平中线（参考图的水平光轴）
+    ctx.save();
+    ctx.strokeStyle = 'rgba(126,249,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx() - R() * 1.05, cy());
+    ctx.lineTo(cx() + R() * 1.05, cy());
+    ctx.stroke();
+    ctx.restore();
+
+    eqBars.forEach((bar) => {
+      const dir = bar.side === 0 ? -1 : 1;
+      // 条柱在 [0.28R, 0.98R] 之间排布
+      const frac = 0.28 + (bar.idx / (EQ_BARS - 1)) * 0.70;
+      const baseX = cx() + dir * R() * frac;
+      // 高度调制：多正弦叠加，形成不规则频谱
+      const h = bar.base
+        * (0.55
+          + 0.25 * Math.sin(t * bar.speed + bar.phase)
+          + 0.20 * Math.sin(t * bar.speed * 1.7 + bar.phase * 1.3 + eqPhase[bar.side]));
+      const barH = h * R() * 0.42;
+
+      // 条柱中线（细）
+      ctx.beginPath();
+      ctx.moveTo(baseX, cy() - barH);
+      ctx.lineTo(baseX, cy() + barH);
+      ctx.strokeStyle = `rgba(126,249,255,${0.10 + h * 0.22})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // 条柱上的尘埃（上下对称分布）
+      bar.particles.forEach((pt) => {
+        pt.off += pt.offSpeed;
+        pt.jitter += 0.02;
+        const spread = (Math.sin(pt.off) * 0.5 + 0.5); // 0..1
+        const y = cy() + dir * 0 + Math.sin(pt.off) * barH * (0.4 + spread * 0.6)
+          + Math.sin(pt.jitter) * 1.2;
+        const x = baseX + Math.sin(pt.jitter * 0.7) * 1.6;
+        const a = pt.alpha * (0.4 + 0.6 * spread);
+        drawGlow(x, y, pt.size * 2.4, bar.side === 0 ? SPRITES.cyan : SPRITES.purple, a * 0.85);
+      });
+    });
+
+    // ---------- 3) 弧缘爆发：溅射闪尘 ----------
+    sparkBursts.forEach((p) => {
+      p.life += 1;
+      if (p.life > p.maxLife) {
+        resetSpark(p, false);
+        return;
+      }
+      const k = 1 - p.life / p.maxLife;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.975;
+      p.vy *= 0.975;
+      // 轻微向外漂
+      const dx = p.x - cx(), dy = p.y - cy();
+      const d = Math.hypot(dx, dy) + 1;
+      p.vx += (dx / d) * 0.012;
+      p.vy += (dy / d) * 0.012;
+
+      const a = 0.75 * k * k;
+      const tone = p.arc === 0 ? (p.tone < 0.5 ? 0.15 : 0.55) : (p.tone < 0.5 ? 0.55 : 0.75);
+      drawGlow(p.x, p.y, p.size * (0.5 + 0.5 * k) * 2.8, spriteFor(tone), a * 0.9);
+    });
+
+    // ---------- 3) 弧缘爆发：细丝/拖尾 ----------
+    streaks.forEach((s) => {
+      s.life += 1;
+      if (s.life > s.maxLife) {
+        resetStreak(s, false);
+        return;
+      }
+      const k = 1 - s.life / s.maxLife;
+      const px = s.x, py = s.y;
+      s.x += s.vx;
+      s.y += s.vy;
+      s.vx *= 0.982;
+      s.vy *= 0.982;
+
+      const a = 0.55 * k;
+      const tone = s.arc === 0 ? 0.2 : 0.7;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(s.x, s.y);
+      ctx.strokeStyle = dustColor(tone, a);
+      ctx.lineWidth = s.width * k;
+      ctx.stroke();
+    });
+
+    // ---------- 保留：中心高亮光点 ----------
+    ctx.save();
+    const pulse = 0.85 + 0.15 * Math.sin(t * 0.004);
+    const centerGlow = ctx.createRadialGradient(cx(), cy(), 0, cx(), cy(), 14 * pulse);
+    centerGlow.addColorStop(0, 'rgba(255,255,255,1)');
+    centerGlow.addColorStop(0.35, 'rgba(126,249,255,0.9)');
+    centerGlow.addColorStop(0.7, 'rgba(181,123,255,0.5)');
+    centerGlow.addColorStop(1, 'rgba(181,123,255,0)');
+    ctx.fillStyle = centerGlow;
+    ctx.beginPath();
+    ctx.arc(cx(), cy(), 14 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx(), cy(), 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = '#7ef9ff';
+    ctx.fill();
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(draw);
+})();
+</script>
+
+</body>
+</html>
