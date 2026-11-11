@@ -1,0 +1,144 @@
+/* 时之交响 TimeSymphony — 图标页样式
+ * 单页、无构建、零外链。深色舞台是这个图标的设计前提，不要改成浅色底。
+ */
+
+:root {
+  --bg-0: #05070f;
+  --bg-1: #0b1028;
+  --bg-2: #141a44;
+  --glow-cyan: #7ef9ff;
+  --glow-purple: #b57bff;
+  --glow-gold: #ffd36e;
+  --text: rgba(255, 255, 255, 0.82);
+  --text-dim: rgba(255, 255, 255, 0.45);
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(181, 123, 255, 0.18), transparent 45%),
+    radial-gradient(circle at 70% 80%, rgba(126, 249, 255, 0.15), transparent 50%),
+    linear-gradient(180deg, #05070f 0%, #0b1028 45%, #080a1a 100%);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text);
+}
+
+/* ---------- 图标舞台 ---------- */
+
+.stage {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  border-radius: 44px;
+  background: radial-gradient(circle at 50% 50%, rgba(20, 26, 68, 0.9), rgba(5, 7, 15, 0.95) 70%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 120px rgba(126, 249, 255, 0.08),
+    0 0 220px rgba(181, 123, 255, 0.08);
+  overflow: hidden;
+}
+
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- 标题 ---------- */
+
+.title {
+  text-align: center;
+  letter-spacing: 4px;
+}
+
+.title .cn {
+  font-size: 22px;
+  font-weight: 600;
+  background: linear-gradient(90deg, var(--glow-cyan), var(--glow-purple) 50%, var(--glow-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.title .en {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 6px;
+}
+
+/* ---------- 画质切换 ---------- */
+
+.quality {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.quality-switch {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.quality-switch button {
+  appearance: none;
+  min-width: 96px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.quality-switch button:hover { color: rgba(255, 255, 255, 0.88); }
+
+.quality-switch button[aria-pressed="true"] {
+  color: #05070f;
+  background: linear-gradient(135deg, var(--glow-cyan), var(--glow-purple));
+  box-shadow: 0 0 24px rgba(126, 249, 255, 0.35);
+}
+
+.quality-switch button:focus-visible {
+  outline: 2px solid var(--glow-cyan);
+  outline-offset: 3px;
+}
+
+.quality-hint {
+  min-height: 18px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+/* ---------- 窄屏 ---------- */
+
+@media (max-width: 480px) {
+  .stage { width: 220px; height: 220px; border-radius: 38px; }
+  .title .cn { font-size: 19px; }
+  .quality-switch button { min-width: 84px; padding: 0 14px; font-size: 14px; }
+}
