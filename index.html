@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>时之交响 TimeSymphony — 图标</title>
+<link rel="stylesheet" href="assets/icon.css?v=20261111" />
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <canvas id="iconCanvas"></canvas>
+</div>
+
+<div class="title">
+  <span class="cn">时之交响</span>
+  <span class="en">TIME SYMPHONY</span>
+</div>
+
+<div class="quality">
+  <div class="quality-switch" role="group" aria-label="画质">
+    <button type="button" data-quality="hd" aria-pressed="false">高清</button>
+    <button type="button" data-quality="smooth" aria-pressed="true">流畅</button>
+  </div>
+  <div class="quality-hint" id="qualityHint"></div>
+</div>
+
+<!-- 版本号与 assets/icon.css?v= 同一批，改样式/脚本时必须两处同改 -->
+<script src="assets/icon.js?v=20261111"></script>
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('iconCanvas');
+  var stage = document.getElementById('stage');
+  var hint = document.getElementById('qualityHint');
+  var buttons = document.querySelectorAll('.quality-switch button');
+
+  var icon = window.TimeSymphonyIcon.create(canvas, {
+    stage: stage,
+    quality: window.TimeSymphonyIcon.DEFAULT_QUALITY
+  });
+
+  function renderPressed(active) {
+    for (var i = 0; i < buttons.length; i++) {
+      var on = buttons[i].getAttribute('data-quality') === active;
+      buttons[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    var tier = window.TimeSymphonyIcon.QUALITY[active];
+    hint.textContent = tier ? tier.hint : '';
+  }
+
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener('click', function () {
+      renderPressed(icon.setQuality(this.getAttribute('data-quality')));
+    });
+  }
+
+  renderPressed(icon.quality);
+})();
+</script>
+
+</body>
+</html>
